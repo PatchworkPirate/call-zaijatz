@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { type ConnectionState, RoomEvent, type LocalTrack, Room, type Participant } from 'livekit-client';
 	import { onMount } from 'svelte';
-	import { PUBLIC_URL } from '$env/static/public';
 	import * as _ from 'lodash';
 	import { UserIcon } from 'lucide-svelte';
 	import { SvelteMap } from 'svelte/reactivity';
@@ -73,7 +72,7 @@
 			<button
 				class="btn btn-primary"
 				onclick={async () => {
-					await room.connect(PUBLIC_URL, jwt, { autoSubscribe: true });
+					await room.connect("wss://rtc.webcomms.net", jwt, { autoSubscribe: true });
 				}}>Call</button
 			>
 		</div>
