@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { type ConnectionState, RoomEvent, LocalTrack, Room, Participant } from 'livekit-client';
+	import { type ConnectionState, RoomEvent, type LocalTrack, Room, type Participant } from 'livekit-client';
 	import { onMount } from 'svelte';
 	import { PUBLIC_URL } from '$env/static/public';
 	import * as _ from 'lodash';
