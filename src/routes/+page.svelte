@@ -1,17 +1,22 @@
 <script lang="ts">
-	import { type ConnectionState, RoomEvent, type LocalTrack, Room, type Participant } from 'livekit-client';
+	import {
+		type ConnectionState,
+		RoomEvent,
+		type LocalTrack,
+		Room,
+		type Participant
+	} from 'livekit-client';
 	import { onMount } from 'svelte';
 	import * as _ from 'lodash';
 	import { UserIcon } from 'lucide-svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { twMerge } from 'tailwind-merge';
 	import Rabbit from '$lib/assets/rabbit.png';
-
-	const { data } = $props();
-
-	const { jwt } = data;
+	import { v4 } from 'uuid';
 
 	let localTracks: LocalTrack[] | undefined = $state();
+
+	let jwt: string | undefined = $state();
 
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
@@ -53,8 +58,26 @@
 	});
 
 	onMount(() => {
-		
-		room.localParticipant.createTracks({ audio: true }).then((tracks) => (localTracks = tracks));
+		fetch('https://dev.webcomms.net/api/v1/rtc-access', {
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			method: 'POST',
+			body: JSON.stringify({
+				identity: v4(),
+				roomName: 'call-zaijatz'
+			})
+		}).then(async (response) => {
+			const data = await response.json();
+			jwt = data.jwt;
+
+			console.log('jwt fetched');
+		});
+
+		room.localParticipant.createTracks({ audio: true }).then((tracks) => {
+			localTracks = tracks;
+			console.log('tracks created');
+		});
 	});
 </script>
 
@@ -72,7 +95,11 @@
 			<button
 				class="btn btn-primary"
 				onclick={async () => {
-					await room.connect("wss://rtc.webcomms.net", jwt, { autoSubscribe: true });
+					if (!jwt) {
+						console.error('Invalid JWT', jwt);
+						return;
+					}
+					await room.connect('wss://rtc.webcomms.net', jwt, { autoSubscribe: true });
 				}}>Call</button
 			>
 		</div>
