@@ -35,18 +35,28 @@
 		remoteParticipants.delete(participant.identity);
 	});
 
+	room.on(RoomEvent.TrackPublished, (pub, part) => {
+		remoteParticipants.set(part.identity, part)
+	})
+
+	room.on(RoomEvent.TrackUnpublished, (pub, part) => {
+		remoteParticipants.set(part.identity, part)
+	})
+
 	room.on(RoomEvent.Connected, async () => {
 		console.log('connected to room');
 
-		if (!localTracks) return;
+		if (!localTracks) {
+			localTracks = await room.localParticipant.createTracks({ audio: true });
+		}
 
 		for (const track of localTracks) {
 			await room.localParticipant.publishTrack(track);
 		}
 
-		for (const participant of room.remoteParticipants.values()) {
+		room.remoteParticipants.forEach((participant) => {
 			remoteParticipants.set(participant.identity, participant);
-		}
+		});
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
@@ -83,7 +93,7 @@
 
 {#if localTracks}
 	{#if roomState === 'disconnected'}
-		<div class="flex h-screen flex-col justify-between p-2">
+		<div class="flex h-svh flex-col justify-between p-2">
 			<div class="flex flex-1 flex-col items-center justify-center">
 				<img
 					src={Rabbit}
@@ -119,7 +129,7 @@
 							<sm class="max-w-24 overflow-clip text-center text-xs text-nowrap text-slate-300"
 								>{participant.identity}</sm
 							>
-							<audio
+							<audio defaultmuted={false} autoplay
 								{@attach (audio) => {
 									participant.audioTrackPublications.forEach((trackPub) => {
 										trackPub.audioTrack?.attach(audio);
