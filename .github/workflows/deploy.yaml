@@ -28,9 +28,9 @@ jobs:
       - name: build
         env:
          BASE_PATH: '/${{ github.event.repository.name }}'
-         PUBLIC_URL: '{{secrets.PUBLIC_URL}}'
-         PRIVATE_LIVEKIT_API_KEY: '{{secrets.PRIVATE_LIVEKIT_API_KEY}}'
-         PRIVATE_LIVEKIT_API_SECRET: '{{secrets.PRIVATE_LIVEKIT_API_SECRET}}'
+         PUBLIC_URL: ${{ secrets.PUBLIC_URL }}
+         PRIVATE_LIVEKIT_API_KEY: ${{ secrets.PRIVATE_LIVEKIT_API_KEY }}
+         PRIVATE_LIVEKIT_API_SECRET: ${{ secrets.PRIVATE_LIVEKIT_API_SECRET }}
         run: |
          pnpm run build
 
