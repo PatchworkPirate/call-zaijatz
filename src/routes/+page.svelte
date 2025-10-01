@@ -9,7 +9,7 @@
 	} from 'livekit-client';
 	import { onMount } from 'svelte';
 	import * as _ from 'lodash';
-	import { UserIcon } from 'lucide-svelte';
+	import { CogIcon, UserIcon } from 'lucide-svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { twMerge } from 'tailwind-merge';
 	import Rabbit from '$lib/assets/rabbit.png';
@@ -22,19 +22,33 @@
 
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
+	let activeDevices = $state('');
 	const remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
 	const remoteAudioTracks: Map<string, RemoteAudioTrack> = new SvelteMap();
 	$inspect(remoteParticipants);
+
+	let settingsModal: HTMLDialogElement | undefined = $state();
+	let logs: string[] = $state([]);
 
 	let activeSpeakers: Participant[] = $state([]);
 
 	room.on(RoomEvent.ConnectionStateChanged, (state) => (roomState = state));
 
+	room.on(RoomEvent.ActiveDeviceChanged, () => {
+		activeDevices =
+			'audioinput: ' +
+			room.getActiveDevice('audioinput') +
+			' audiooutput: ' +
+			room.getActiveDevice('audiooutput');
+	});
+
 	room.on(RoomEvent.ParticipantConnected, (participant) => {
 		remoteParticipants.set(participant.identity, participant);
+		logs.push('Remote Participant Connected: ' + participant.identity);
 	});
 	room.on(RoomEvent.ParticipantDisconnected, (participant) => {
 		remoteParticipants.delete(participant.identity);
+		logs.push('Remote Participant Disconnected: ' + participant.identity);
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
@@ -57,6 +71,12 @@
 		for (const track of localTracks) {
 			await room.localParticipant.publishTrack(track);
 		}
+
+		activeDevices =
+			'audioinput: ' +
+			room.getActiveDevice('audioinput') +
+			' audiooutput: ' +
+			room.getActiveDevice('audiooutput');
 
 		room.remoteParticipants.forEach((participant) => {
 			remoteParticipants.set(participant.identity, participant);
@@ -93,8 +113,35 @@
 </script>
 
 {#if mediaDevices}
-	{#if roomState === 'disconnected'}
-		<div class="flex h-svh flex-col justify-between p-2">
+	<div class="flex h-svh w-full flex-col justify-between p-2">
+		<button
+			class="flex cursor-pointer flex-row justify-end"
+			onclick={() => {
+				if (settingsModal) {
+					settingsModal.showModal();
+				}
+			}}><CogIcon /></button
+		>
+		<dialog id="settingsModal" bind:this={settingsModal} class="modal w-svw">
+			<div class="modal-box m-0 h-full w-full">
+				<div class="flex flex-col gap-1 overflow-y-auto">
+					{#each logs as log}
+						<p>{log}</p>
+					{/each}
+				</div>
+				<div class="flex flex-col gap-1">
+					<p>Current Status:</p>
+					<p>Active Devices:</p>
+					<p>{JSON.stringify(activeDevices)}</p>
+					<p>Incoming Tracks:</p>
+					<p>{JSON.stringify(Object.fromEntries(remoteAudioTracks.entries()))}</p>
+				</div>
+				<form method="dialog">
+					<button class="btn">Close</button>
+				</form>
+			</div>
+		</dialog>
+		{#if roomState === 'disconnected'}
 			<div class="flex flex-1 flex-col items-center justify-center">
 				<img
 					src={Rabbit}
@@ -103,7 +150,6 @@
 					srcset=""
 				/>
 			</div>
-			<p>{JSON.stringify(mediaDevices)}</p>
 			<button
 				class="btn btn-primary"
 				onclick={async () => {
@@ -114,9 +160,7 @@
 					await room.connect('wss://rtc.webcomms.net', jwt, { autoSubscribe: true });
 				}}>Call</button
 			>
-		</div>
-	{:else if roomState === 'connected'}
-		<div class="flex h-svh flex-col justify-between p-2">
+		{:else if roomState === 'connected'}
 			<div class="flex flex-1 flex-row flex-wrap items-center justify-evenly gap-4">
 				{#if remoteParticipants.size > 0}
 					{#each remoteParticipants.values() as participant}
@@ -138,8 +182,6 @@
 				{/if}
 			</div>
 			<audio
-				defaultmuted={false}
-				autoplay
 				{@attach (audio) => {
 					remoteAudioTracks.values().forEach((trackPub) => {
 						trackPub.attach(audio);
@@ -153,9 +195,7 @@
 					await room.disconnect(true);
 				}}>Disconnect</button
 			>
-		</div>
-	{:else}
-		<div class="flex h-svh flex-col justify-between p-2">
+		{:else}
 			<div class="flex flex-1 flex-col items-center justify-center">
 				<img
 					src={Rabbit}
@@ -165,8 +205,8 @@
 				/>
 			</div>
 			<button class="btn btn-primary" disabled>{_.capitalize(roomState)}</button>
-		</div>
-	{/if}
+		{/if}
+	</div>
 {:else if !localTracks}
 	<p>Allow Mic access</p>
 {/if}
