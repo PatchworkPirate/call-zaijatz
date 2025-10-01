@@ -23,8 +23,8 @@
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
 	let activeDevices = $state('');
-	let remoteParticipants: Map<string, Participant> = $state(new SvelteMap(room.remoteParticipants));
-	let remoteAudioTracks: Map<string, RemoteAudioTrack> = $state(new SvelteMap());
+	let remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
+	let remoteAudioTracks: Map<string, RemoteAudioTrack> = new SvelteMap();
 	$inspect(remoteParticipants);
 
 	let settingsModal: HTMLDialogElement | undefined = $state();
@@ -84,8 +84,12 @@
 	});
 
 	room.on(RoomEvent.Disconnected, () => {
-		remoteAudioTracks = new SvelteMap();
-		remoteParticipants = new SvelteMap();
+		remoteAudioTracks.forEach((track) => {
+			if (track.sid) {
+				remoteAudioTracks.delete(track.sid);
+			}
+		});
+		remoteParticipants.forEach((part) => remoteParticipants.delete(part.identity));
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
