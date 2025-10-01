@@ -119,7 +119,7 @@
 			>
 		</div>
 	{:else if roomState === 'connected'}
-		<div class="flex h-screen flex-col justify-between p-2">
+		<div class="flex h-svh flex-col justify-between p-2">
 			<div class="flex flex-1 flex-row flex-wrap items-center justify-evenly gap-4">
 				{#if remoteParticipants.size > 0}
 					{#each remoteParticipants.values() as participant}
@@ -158,7 +158,7 @@
 			>
 		</div>
 	{:else}
-		<div class="flex h-screen flex-col justify-between p-2">
+		<div class="flex h-svh flex-col justify-between p-2">
 			<div class="flex flex-1 flex-col items-center justify-center">
 				<img
 					src={Rabbit}
