@@ -35,11 +35,11 @@
 		remoteParticipants.delete(participant.identity);
 	});
 
-	room.on(RoomEvent.TrackPublished, (pub, part) => {
+	room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
 		remoteParticipants.set(part.identity, part)
 	})
 
-	room.on(RoomEvent.TrackUnpublished, (pub, part) => {
+	room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
 		remoteParticipants.set(part.identity, part)
 	})
 
