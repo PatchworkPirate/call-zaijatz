@@ -15,26 +15,25 @@
 	import Rabbit from '$lib/assets/rabbit.png';
 	import { v4 } from 'uuid';
 
+	let mediaDevices: MediaDeviceInfo[] | undefined = $state();
 	let localTracks: LocalTrack[] | undefined = $state();
 
 	let jwt: string | undefined = $state();
 
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
-	let numParticipants: Number = $state(room.numParticipants);
 	const remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
 	const remoteAudioTracks: Map<string, RemoteAudioTrack> = new SvelteMap();
 	$inspect(remoteParticipants);
+
 	let activeSpeakers: Participant[] = $state([]);
 
 	room.on(RoomEvent.ConnectionStateChanged, (state) => (roomState = state));
 
 	room.on(RoomEvent.ParticipantConnected, (participant) => {
-		numParticipants = room.numParticipants;
 		remoteParticipants.set(participant.identity, participant);
 	});
 	room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-		numParticipants = room.numParticipants;
 		remoteParticipants.delete(participant.identity);
 	});
 
@@ -89,14 +88,11 @@
 			console.log('jwt fetched');
 		});
 
-		room.localParticipant.createTracks({ audio: true }).then((tracks) => {
-			localTracks = tracks;
-			console.log('tracks created');
-		});
+		navigator.mediaDevices.enumerateDevices().then((devices) => (mediaDevices = devices));
 	});
 </script>
 
-{#if localTracks}
+{#if mediaDevices}
 	{#if roomState === 'disconnected'}
 		<div class="flex h-svh flex-col justify-between p-2">
 			<div class="flex flex-1 flex-col items-center justify-center">
@@ -107,6 +103,7 @@
 					srcset=""
 				/>
 			</div>
+			<p>{JSON.stringify(mediaDevices)}</p>
 			<button
 				class="btn btn-primary"
 				onclick={async () => {
