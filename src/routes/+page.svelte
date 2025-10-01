@@ -4,7 +4,8 @@
 		RoomEvent,
 		type LocalTrack,
 		Room,
-		type Participant
+		type Participant,
+		RemoteAudioTrack
 	} from 'livekit-client';
 	import { onMount } from 'svelte';
 	import * as _ from 'lodash';
@@ -21,7 +22,9 @@
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
 	let numParticipants: Number = $state(room.numParticipants);
-	let remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
+	const remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
+	const remoteAudioTracks: Map<string, RemoteAudioTrack> = new SvelteMap();
+	$inspect(remoteParticipants);
 	let activeSpeakers: Participant[] = $state([]);
 
 	room.on(RoomEvent.ConnectionStateChanged, (state) => (roomState = state));
@@ -36,12 +39,14 @@
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
-		remoteParticipants.set(part.identity, part)
-	})
+		if (track instanceof RemoteAudioTrack) {
+			remoteAudioTracks.set(pub.trackSid, track);
+		}
+	});
 
 	room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
-		remoteParticipants.set(part.identity, part)
-	})
+		remoteAudioTracks.delete(pub.trackSid);
+	});
 
 	room.on(RoomEvent.Connected, async () => {
 		console.log('connected to room');
@@ -129,19 +134,21 @@
 							<sm class="max-w-24 overflow-clip text-center text-xs text-nowrap text-slate-300"
 								>{participant.identity}</sm
 							>
-							<audio defaultmuted={false} autoplay
-								{@attach (audio) => {
-									participant.audioTrackPublications.forEach((trackPub) => {
-										trackPub.audioTrack?.attach(audio);
-									});
-								}}
-							></audio>
 						</div>
 					{/each}
 				{:else}
 					<p class="text-2xl text-slate-300 capitalize">Nobody here</p>
 				{/if}
 			</div>
+			<audio
+				defaultmuted={false}
+				autoplay
+				{@attach (audio) => {
+					remoteAudioTracks.values().forEach((trackPub) => {
+						trackPub.attach(audio);
+					});
+				}}
+			></audio>
 			<button
 				type="button"
 				class="btn btn-error"
