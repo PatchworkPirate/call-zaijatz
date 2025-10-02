@@ -23,10 +23,9 @@
 	let roomState: ConnectionState = $state(room.state);
 	let activeDevices = $state('');
 
-	let remoteParticipants: Map<
-		string,
+	let remoteParticipants: Array<
 		{ id: string; audioTracks: string[]; videoTracks: string[] }
-	> = new SvelteMap();
+	> = $state([]);
 	$inspect(remoteParticipants);
 
 	let settingsModal: HTMLDialogElement | undefined = $state();
@@ -45,22 +44,26 @@
 	});
 
 	room.on(RoomEvent.ParticipantConnected, (participant) => {
-		remoteParticipants.set(participant.identity, {
+		remoteParticipants.push( {
 			id: participant.identity,
 			audioTracks: [],
 			videoTracks: []
 		});
 		logs.push('Remote Participant Connected: ' + participant.identity);
 	});
+
 	room.on(RoomEvent.ParticipantDisconnected, (participant) => {
-		remoteParticipants.delete(participant.identity);
+		const partIndex = remoteParticipants.findIndex(p => p.id === participant.identity)
+
+		if (partIndex === -1) return
+
+		remoteParticipants.splice(partIndex, 1)
 		logs.push('Remote Participant Disconnected: ' + participant.identity);
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
-		if (track! instanceof RemoteAudioTrack) return;
 
-		const participant = remoteParticipants.get(part.identity);
+		const participant = remoteParticipants.find(p => p.id === part.identity);
 		if (!participant) return;
 
 		participant.audioTracks.push(pub.trackSid);
@@ -68,7 +71,7 @@
 
 	room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
 		if (track instanceof RemoteAudioTrack) {
-			const participant = remoteParticipants.get(part.identity);
+			const participant = remoteParticipants.find(p => p.id === part.identity);
 
 			if (!participant) return;
 
@@ -98,17 +101,17 @@
 			room.getActiveDevice('audiooutput');
 
 		room.remoteParticipants.forEach((participant) => {
-			remoteParticipants.set(participant.identity, {
+			remoteParticipants.push({
 				id: participant.identity,
-				audioTracks: [],
+				audioTracks: Array.from(participant.audioTrackPublications.values()).map(pub => (pub.trackSid)),
 				videoTracks: []
 			});
 		});
 	});
 
 	room.on(RoomEvent.Disconnected, () => {
-		remoteParticipants.forEach((part) => {
-			remoteParticipants.delete(part.id);
+		remoteParticipants.forEach((part, index) => {
+			remoteParticipants.splice(index, 1);
 		});
 	});
 
@@ -187,8 +190,8 @@
 			>
 		{:else if roomState === 'connected'}
 			<div class="flex flex-1 flex-row flex-wrap items-center justify-evenly gap-4">
-				{#if remoteParticipants.size > 0}
-					{#each remoteParticipants.values() as participant}
+				{#if remoteParticipants.length > 0}
+					{#each remoteParticipants as participant}
 						{@const roomParticipant = room.remoteParticipants.get(participant.id)}
 						{#if roomParticipant}
 							<div class="flex flex-col items-center">
