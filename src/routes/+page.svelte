@@ -15,7 +15,6 @@
 	import Rabbit from '$lib/assets/rabbit.png';
 	import { v4 } from 'uuid';
 
-	let mediaDevices: MediaDeviceInfo[] | undefined = $state();
 	let localTracks: LocalTrack[] | undefined = $state();
 
 	let jwt: string | undefined = $state();
@@ -23,8 +22,11 @@
 	const room = new Room();
 	let roomState: ConnectionState = $state(room.state);
 	let activeDevices = $state('');
-	let remoteParticipants: Map<string, Participant> = new SvelteMap(room.remoteParticipants);
-	let remoteAudioTracks: Map<string, RemoteAudioTrack> = new SvelteMap();
+
+	let remoteParticipants: Map<
+		string,
+		{ id: string; audioTracks: string[]; videoTracks: string[] }
+	> = new SvelteMap();
 	$inspect(remoteParticipants);
 
 	let settingsModal: HTMLDialogElement | undefined = $state();
@@ -43,7 +45,11 @@
 	});
 
 	room.on(RoomEvent.ParticipantConnected, (participant) => {
-		remoteParticipants.set(participant.identity, participant);
+		remoteParticipants.set(participant.identity, {
+			id: participant.identity,
+			audioTracks: [],
+			videoTracks: []
+		});
 		logs.push('Remote Participant Connected: ' + participant.identity);
 	});
 	room.on(RoomEvent.ParticipantDisconnected, (participant) => {
@@ -52,13 +58,26 @@
 	});
 
 	room.on(RoomEvent.TrackSubscribed, (track, pub, part) => {
-		if (track instanceof RemoteAudioTrack) {
-			remoteAudioTracks.set(pub.trackSid, track);
-		}
+		if (track! instanceof RemoteAudioTrack) return;
+
+		const participant = remoteParticipants.get(part.identity);
+		if (!participant) return;
+
+		participant.audioTracks.push(pub.trackSid);
 	});
 
 	room.on(RoomEvent.TrackUnsubscribed, (track, pub, part) => {
-		remoteAudioTracks.delete(pub.trackSid);
+		if (track instanceof RemoteAudioTrack) {
+			const participant = remoteParticipants.get(part.identity);
+
+			if (!participant) return;
+
+			const trackIndex = participant.audioTracks.findIndex((tr) => tr === pub.trackSid);
+
+			if (trackIndex === -1) return;
+
+			participant.audioTracks.splice(trackIndex, 1);
+		}
 	});
 
 	room.on(RoomEvent.Connected, async () => {
@@ -79,21 +98,18 @@
 			room.getActiveDevice('audiooutput');
 
 		room.remoteParticipants.forEach((participant) => {
-			remoteParticipants.set(participant.identity, participant);
+			remoteParticipants.set(participant.identity, {
+				id: participant.identity,
+				audioTracks: [],
+				videoTracks: []
+			});
 		});
 	});
 
 	room.on(RoomEvent.Disconnected, () => {
-		remoteAudioTracks.forEach((track) => {
-			if (track.sid) {
-				remoteAudioTracks.delete(track.sid);
-			}
+		remoteParticipants.forEach((part) => {
+			remoteParticipants.delete(part.id);
 		});
-		remoteParticipants.forEach((part) => remoteParticipants.delete(part.identity));
-	});
-
-	room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-		console.log('Track Subbed', track, publication, participant);
 	});
 
 	room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
@@ -117,11 +133,11 @@
 			console.log('jwt fetched');
 		});
 
-		navigator.mediaDevices.enumerateDevices().then((devices) => (mediaDevices = devices));
+		room.localParticipant.createTracks({ audio: true }).then((tracks) => (localTracks = tracks));
 	});
 </script>
 
-{#if mediaDevices}
+{#if localTracks}
 	<div class="flex h-svh w-full flex-col justify-between p-2">
 		<button
 			class="flex cursor-pointer flex-row justify-end"
@@ -143,7 +159,7 @@
 					<p>Active Devices:</p>
 					<p>{JSON.stringify(activeDevices)}</p>
 					<p>Incoming Tracks:</p>
-					<p>{JSON.stringify(Object.fromEntries(remoteAudioTracks.entries()))}</p>
+					<p>{JSON.stringify(Object.fromEntries(remoteParticipants.entries()))}</p>
 				</div>
 				<form method="dialog">
 					<button class="btn">Close</button>
@@ -173,30 +189,37 @@
 			<div class="flex flex-1 flex-row flex-wrap items-center justify-evenly gap-4">
 				{#if remoteParticipants.size > 0}
 					{#each remoteParticipants.values() as participant}
-						<div class="flex flex-col items-center">
-							<UserIcon
-								class={twMerge(
-									'm-5 h-24 w-24 rounded-full border-2 border-slate-300 bg-slate-300 text-white transition-all',
-									activeSpeakers.map((a) => a.identity).includes(participant.identity) &&
-										'border-emerald-500'
-								)}
-							/>
-							<sm class="max-w-24 overflow-clip text-center text-xs text-nowrap text-slate-300"
-								>{participant.identity}</sm
-							>
-						</div>
+						{@const roomParticipant = room.remoteParticipants.get(participant.id)}
+						{#if roomParticipant}
+							<div class="flex flex-col items-center">
+								<UserIcon
+									class={twMerge(
+										'm-5 h-24 w-24 rounded-full border-2 border-slate-300 bg-slate-300 text-white transition-all',
+										activeSpeakers.map((a) => a.identity).includes(roomParticipant.identity) &&
+											'border-emerald-500'
+									)}
+								/>
+								<sm class="max-w-24 overflow-clip text-center text-xs text-nowrap text-slate-300"
+									>{roomParticipant.identity}</sm
+								>
+								<audio
+									{@attach (audio) => {
+										participant.audioTracks.forEach((trackSid) => {
+											const trackPublication = roomParticipant.audioTrackPublications.get(trackSid)
+											if (!trackPublication || !trackPublication.audioTrack) return;
+
+											trackPublication.audioTrack.attach(audio)
+										});
+									}}
+								></audio>
+							</div>
+						{/if}
 					{/each}
 				{:else}
 					<p class="text-2xl text-slate-300 capitalize">Nobody here</p>
 				{/if}
 			</div>
-			<audio
-				{@attach (audio) => {
-					remoteAudioTracks.values().forEach((trackPub) => {
-						trackPub.attach(audio);
-					});
-				}}
-			></audio>
+
 			<button
 				type="button"
 				class="btn btn-error"
